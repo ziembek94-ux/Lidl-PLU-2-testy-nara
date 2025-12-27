@@ -28,4 +28,4 @@ jobs:
 
     # 4. Uruchomienie Twojego skryptu
     - name: Uruchom skrypt main.py
-      run: python main.py
+      run: python -u main.py
