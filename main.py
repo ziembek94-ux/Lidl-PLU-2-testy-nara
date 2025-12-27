@@ -20,7 +20,7 @@ def get_driver():
     chrome_options.add_argument("--no-sandbox")
     chrome_options.add_argument("--disable-dev-shm-usage")
     chrome_options.add_argument("--disable-gpu")
-    chrome_options.add_argument("--log-level=3") # Mniej logów chrome
+    chrome_options.add_argument("--log-level=3")
     chrome_options.timeouts = { 'pageLoad': 30000 }
     
     service = Service(ChromeDriverManager().install())
@@ -48,10 +48,10 @@ PLU_INPUT = "input[data-testid='plu-number-input']"
 PRODUCT_NAME_XPATH = "//div[contains(@class, 'product-name')]//h1"
 LOGOUT_BTN = "#logout > svg"
 
-# Przycisk "Spróbuj ponownie" (długi selektor z Twojego kodu)
+# Przycisk końca testu (do wykrycia, że test się skończył)
 BTN_TRY_AGAIN = "#app > div > div > div > div > div.tw\\:bg-card.tw\\:text-card-foreground.tw\\:flex.tw\\:flex-col.tw\\:gap-6.tw\\:rounded-xl.tw\\:border.tw\\:py-6.tw\\:shadow-sm.tw\\:border-gray-300.tw\\:w-full.tw\\:max-w-xl.tw\\:text-center > div.tw\\:items-center.tw\\:\\[\\.border-t\\]\\:pt-6.tw\\:flex.tw\\:flex-col.tw\\:md\\:flex-row.tw\\:justify-center.tw\\:gap-4.tw\\:max-w-lg.tw\\:mt-6.tw\\:mx-auto.tw\\:px-4.tw\\:w-full > button"
 
-# --- PEŁNA LISTA 42 KONT ---
+# --- PEŁNA LISTA KONT ---
 ACCOUNTS = [
     # STARE KONTA (22)
     {"u": "ziembek", "p": "Lidl2150!"},
@@ -100,7 +100,7 @@ ACCOUNTS = [
     {"u": "MS2150", "p": "ZElki213*"}
 ]
 
-# BAZA ZAKTUALIZOWANA WG RAPORTU
+# BAZA PLU
 RAW_PLU_DATA = {
     # Owoce
     "Ananas": 505, "Arbuz": 180, "Awokado zielone": 152, "Bio Awocado": 348,
@@ -186,7 +186,6 @@ for idx, current_acc in enumerate(ACCOUNTS):
         pass_el.send_keys(current_acc['p'])
         pass_el.send_keys(Keys.ENTER)
         
-        # Poczekaj na załadowanie dashboardu
         wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, BTN_TEST_PLU)))
         time.sleep(1)
 
@@ -194,37 +193,35 @@ for idx, current_acc in enumerate(ACCOUNTS):
         for test_round in range(2):
             print(f"   ▶️ Rozpoczynam TEST {test_round + 1} z 2")
 
-            if test_round == 0:
-                # Pierwszy test uruchamiamy z dashboardu
-                driver.find_element(By.CSS_SELECTOR, BTN_TEST_PLU).click()
+            # ZAWSZE startuj z Dashboardu - to jest pewniejsze niż przycisk "Spróbuj ponownie"
+            if test_round > 0:
+                driver.get(URL_LOGIN) # To nas przeniesie na dashboard
+                time.sleep(2)
+
+            try:
+                # Kliknij test wiedzy
+                wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, BTN_TEST_PLU))).click()
+                # Kliknij "wszystkie artykuły"
                 wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, BTN_ALL_ARTICLES))).click()
+                # Kliknij ewentualny Step 2 (jeśli istnieje)
                 try:
                     wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, BTN_STEP_2_GROUP))).click()
                 except: pass
-            else:
-                # Drugi test uruchamiamy przyciskiem "Spróbuj ponownie" po zakończeniu pierwszego
-                # Czekamy aż pojawi się przycisk wyniku/restartu
-                try:
-                    retry_btn = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, BTN_TRY_AGAIN)))
-                    driver.execute_script("arguments[0].click();", retry_btn)
-                except Exception as e:
-                    print(f"   ⚠️ Nie znaleziono przycisku restartu: {e}. Próbuję nawigacji z dashboardu.")
-                    driver.get(URL_LOGIN)
-                    wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, BTN_TEST_PLU))).click()
-                    wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, BTN_ALL_ARTICLES))).click()
+            except Exception as e:
+                print(f"      ⚠️ Błąd nawigacji do testu: {e}")
+                continue
 
-            # Pętla odpowiadania na pytania w danym teście
+            # Pętla odpowiadania na pytania
             time.sleep(2)
             last_product_name = ""
             
             while True:
-                # Sprawdź, czy test się zakończył (czy widać przycisk "Spróbuj ponownie")
+                # Sprawdź, czy test się zakończył (czy widać przycisk podsumowania)
                 try:
-                    # Używamy krótkiego timeoutu, żeby nie blokować pętli
                     end_btns = driver.find_elements(By.CSS_SELECTOR, BTN_TRY_AGAIN)
                     if end_btns and end_btns[0].is_displayed():
                         print(f"   🏁 Koniec testu {test_round + 1}.")
-                        break # Wychodzimy z pętli while, test zakończony
+                        break 
                 except: pass
 
                 # Sprawdź nazwę produktu
@@ -236,7 +233,6 @@ for idx, current_acc in enumerate(ACCOUNTS):
                     
                     current_name = name_el[0].text.strip()
                     
-                    # Unikamy dublowania wpisów dla tego samego produktu
                     if not current_name or current_name == last_product_name or "koniec" in current_name.lower():
                         time.sleep(0.3)
                         continue
@@ -244,14 +240,13 @@ for idx, current_acc in enumerate(ACCOUNTS):
                     kod = plu_dict.get(normalize_name(current_name))
                     
                     if kod:
-                        # print(f"      📝 {current_name} -> {kod}") # Opcjonalnie: odkomentuj, żeby widzieć logi pytań
                         inp = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, PLU_INPUT)))
                         inp.clear()
                         inp.send_keys(str(kod))
                         inp.send_keys(Keys.ENTER)
                         last_product_name = current_name
                     else:
-                        print(f"      ⚠️ BRAK KODU: '{current_name}' -> wpisuję 0000")
+                        # print(f"      ⚠️ BRAK KODU: '{current_name}' -> 0000")
                         inp = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, PLU_INPUT)))
                         inp.clear()
                         inp.send_keys("0000")
@@ -260,7 +255,6 @@ for idx, current_acc in enumerate(ACCOUNTS):
                         time.sleep(0.5)
                         
                 except Exception as e:
-                    # Ignorujemy drobne błędy w trakcie pętli (np. stale element)
                     time.sleep(0.5)
 
         # 3. WYLOGOWANIE PO 2 TESTACH
