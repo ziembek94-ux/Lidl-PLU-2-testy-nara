@@ -1,0 +1,31 @@
+name: Uruchom Bota Lidl
+
+# Kiedy bot ma startować?
+on:
+  workflow_dispatch:      # Opcja 1: Ręczny przycisk "Run" (najlepsze na start)
+  # schedule:             # Opcja 2: Automat czasowy (odkomentuj, gdy wszystko zadziała)
+  #   - cron: '15 4 * * *' # Przykład: Codziennie o 4:15 rano UTC
+
+jobs:
+  uruchomienie-bota:
+    runs-on: ubuntu-latest
+    
+    steps:
+    # 1. Pobranie Twojego kodu z repozytorium
+    - name: Pobierz kod (Checkout)
+      uses: actions/checkout@v3
+
+    # 2. Instalacja Pythona na serwerze
+    - name: Zainstaluj Python 3.9
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    # 3. Instalacja bibliotek z requirements.txt
+    - name: Zainstaluj biblioteki
+      run: |
+        pip install -r requirements.txt
+
+    # 4. Uruchomienie Twojego skryptu
+    - name: Uruchom skrypt main.py
+      run: python main.py
