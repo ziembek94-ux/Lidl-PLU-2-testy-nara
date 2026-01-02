@@ -131,7 +131,7 @@ RAW_PLU_DATA = {
     "Seler": 342, "Ziemniaki jadalne": 7239, "Ziemniaki jadalne myte": 497,
     # Pieczywo
     "Bagietka czosnkowa": 14, "Bagietka duża pszenna": 7490, "Bagietka w stylu francuskim": 8746,
-    "Bajgiel z makiem": 4063, "Bochen orkiszowy na kam. z witamin.": 9442,
+    "Bajgiel z makiem": 2399, "Bochen orkiszowy na kam. z witamin.": 9442,
     "Bochen rustykalny na kamieniu": 4119, "Bułka bawarska": 836, "Bułka fitness": 9486,
     "Bułka grahamka": 7760, "Bułka kajzerka pszenna": 549, "Bułka kajzerka wieloziarnista": 9,
     "Bułka mleczna": 7563, "Bułka nacięta": 8531, "Bułka orkiszowa na kamieniu": 4132,
