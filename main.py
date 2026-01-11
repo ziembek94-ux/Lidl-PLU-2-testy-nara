@@ -98,6 +98,7 @@ ACCOUNTS = [
     {"u": "Magdacie", "p": "Rydygiera*1"},
     {"u": "WNeli", "p": "Rydygiera*1"},
     {"u": "MS2150", "p": "ZElki213*"}
+    {"u": "NekroFILLLLLLLL", "p": "Pornosek123!"},
 ]
 
 # BAZA PLU
