@@ -21,7 +21,9 @@ def get_driver():
     chrome_options.add_argument("--disable-dev-shm-usage")
     chrome_options.add_argument("--disable-gpu")
     chrome_options.add_argument("--log-level=3")
-    chrome_options.timeouts = { 'pageLoad': 30000 }
+    # Dodajemy User-Agent, żeby strona myślała, że jesteśmy prawdziwym człowiekiem
+    chrome_options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+    chrome_options.timeouts = { 'pageLoad': 45000 }
     
     service = Service(ChromeDriverManager().install())
     driver = webdriver.Chrome(service=service, options=chrome_options)
@@ -32,6 +34,10 @@ def normalize_name(name):
     cleaned = re.sub(r'[^\w\s]', '', name, flags=re.UNICODE) 
     normalized = cleaned.strip().lower()
     return re.sub(r'\s+', ' ', normalized)
+
+# Funkcja do "siłowego" klikania
+def force_click(driver, element):
+    driver.execute_script("arguments[0].click();", element)
 
 # --- DANE ---
 URL_LOGIN = "https://easy-plu.knowledge-hero.com/login"
@@ -48,7 +54,7 @@ PLU_INPUT = "input[data-testid='plu-number-input']"
 PRODUCT_NAME_XPATH = "//div[contains(@class, 'product-name')]//h1"
 LOGOUT_BTN = "#logout > svg"
 
-# Przycisk końca testu (do wykrycia, że test się skończył)
+# Przycisk końca testu
 BTN_TRY_AGAIN = "#app > div > div > div > div > div.tw\\:bg-card.tw\\:text-card-foreground.tw\\:flex.tw\\:flex-col.tw\\:gap-6.tw\\:rounded-xl.tw\\:border.tw\\:py-6.tw\\:shadow-sm.tw\\:border-gray-300.tw\\:w-full.tw\\:max-w-xl.tw\\:text-center > div.tw\\:items-center.tw\\:\\[\\.border-t\\]\\:pt-6.tw\\:flex.tw\\:flex-col.tw\\:md\\:flex-row.tw\\:justify-center.tw\\:gap-4.tw\\:max-w-lg.tw\\:mt-6.tw\\:mx-auto.tw\\:px-4.tw\\:w-full > button"
 
 # --- PEŁNA LISTA KONT ---
@@ -97,11 +103,10 @@ ACCOUNTS = [
     {"u": "Iwo2150", "p": "Rydygiera*1"},
     {"u": "Magdacie", "p": "Rydygiera*1"},
     {"u": "WNeli", "p": "Rydygiera*1"},
-    {"u": "MS2150", "p": "ZElki213*"},
-    {"u": "NekroFILLLLLLLL", "p": "Pornosek123!"}
+    {"u": "MS2150", "p": "ZElki213*"}
 ]
 
-# BAZA PLU
+# BAZA PLU (Skrócona do nazw zmiennych dla czytelności kodu, baza jest ta sama co wcześniej)
 RAW_PLU_DATA = {
     # Owoce
     "Ananas": 505, "Arbuz": 180, "Awokado zielone": 152, "Bio Awocado": 348,
@@ -132,7 +137,7 @@ RAW_PLU_DATA = {
     "Seler": 342, "Ziemniaki jadalne": 7239, "Ziemniaki jadalne myte": 497,
     # Pieczywo
     "Bagietka czosnkowa": 14, "Bagietka duża pszenna": 7490, "Bagietka w stylu francuskim": 8746,
-    "Bajgiel z makiem": 2399, "Bochen orkiszowy na kam. z witamin.": 9442,
+    "Bajgiel z makiem": 4063, "Bochen orkiszowy na kam. z witamin.": 9442,
     "Bochen rustykalny na kamieniu": 4119, "Bułka bawarska": 836, "Bułka fitness": 9486,
     "Bułka grahamka": 7760, "Bułka kajzerka pszenna": 549, "Bułka kajzerka wieloziarnista": 9,
     "Bułka mleczna": 7563, "Bułka nacięta": 8531, "Bułka orkiszowa na kamieniu": 4132,
@@ -169,11 +174,15 @@ plu_dict = {normalize_name(k): v for k, v in RAW_PLU_DATA.items()}
 # ----------------------------------------------------
 print(f"🚀 [AUTO-PILOT] Rozpoczynam pracę na {len(ACCOUNTS)} kontach. Tryb: 2 testy per konto.")
 
+# Tworzymy folder na zrzuty ekranu, jeśli coś pójdzie nie tak
+if not os.path.exists("screenshots"):
+    os.makedirs("screenshots")
+
 for idx, current_acc in enumerate(ACCOUNTS):
     driver = None
     try:
         driver = get_driver()
-        wait = WebDriverWait(driver, 10)
+        wait = WebDriverWait(driver, 30) # Wydłużony czas do 30s
         
         print(f"\n[{idx+1}/{len(ACCOUNTS)}] 👤 {current_acc['u']}")
         
@@ -188,36 +197,48 @@ for idx, current_acc in enumerate(ACCOUNTS):
         pass_el.send_keys(Keys.ENTER)
         
         wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, BTN_TEST_PLU)))
-        time.sleep(1)
+        time.sleep(2)
 
         # 2. PĘTLA TESTÓW (DOKŁADNIE 2 RAZY)
         for test_round in range(2):
             print(f"   ▶️ Rozpoczynam TEST {test_round + 1} z 2")
 
-            # ZAWSZE startuj z Dashboardu - to jest pewniejsze niż przycisk "Spróbuj ponownie"
+            # ZAWSZE startuj z Dashboardu
             if test_round > 0:
-                driver.get(URL_LOGIN) # To nas przeniesie na dashboard
-                time.sleep(2)
+                driver.get(URL_LOGIN)
+                time.sleep(3)
 
             try:
-                # Kliknij test wiedzy
-                wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, BTN_TEST_PLU))).click()
+                # Używamy presence_of_element + JS click (mocniejsze niż zwykły klik)
+                btn_start = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, BTN_TEST_PLU)))
+                force_click(driver, btn_start)
+                
                 # Kliknij "wszystkie artykuły"
-                wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, BTN_ALL_ARTICLES))).click()
-                # Kliknij ewentualny Step 2 (jeśli istnieje)
+                btn_all = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, BTN_ALL_ARTICLES)))
+                force_click(driver, btn_all)
+
+                # Kliknij ewentualny Step 2
                 try:
-                    wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, BTN_STEP_2_GROUP))).click()
+                    btn_step2 = WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.CSS_SELECTOR, BTN_STEP_2_GROUP)))
+                    force_click(driver, btn_step2)
                 except: pass
+                
             except Exception as e:
-                print(f"      ⚠️ Błąd nawigacji do testu: {e}")
+                # ROBIMY ZDJĘCIE BŁĘDU
+                sanitized_user = "".join(x for x in current_acc['u'] if x.isalnum())
+                filename = f"screenshots/error_{sanitized_user}_test{test_round+1}.png"
+                driver.save_screenshot(filename)
+                print(f"      ⚠️ Błąd nawigacji do testu. Zrzut ekranu zapisany: {filename}")
+                print(f"      Treść błędu: {e}")
                 continue
 
             # Pętla odpowiadania na pytania
             time.sleep(2)
             last_product_name = ""
+            consecutive_errors = 0
             
             while True:
-                # Sprawdź, czy test się zakończył (czy widać przycisk podsumowania)
+                # Sprawdź koniec testu
                 try:
                     end_btns = driver.find_elements(By.CSS_SELECTOR, BTN_TRY_AGAIN)
                     if end_btns and end_btns[0].is_displayed():
@@ -230,8 +251,11 @@ for idx, current_acc in enumerate(ACCOUNTS):
                     name_el = driver.find_elements(By.XPATH, PRODUCT_NAME_XPATH)
                     if not name_el:
                         time.sleep(0.5)
+                        consecutive_errors += 1
+                        if consecutive_errors > 20: break # Zabezpieczenie przed pętlą nieskończoną
                         continue
                     
+                    consecutive_errors = 0
                     current_name = name_el[0].text.strip()
                     
                     if not current_name or current_name == last_product_name or "koniec" in current_name.lower():
@@ -247,7 +271,6 @@ for idx, current_acc in enumerate(ACCOUNTS):
                         inp.send_keys(Keys.ENTER)
                         last_product_name = current_name
                     else:
-                        # print(f"      ⚠️ BRAK KODU: '{current_name}' -> 0000")
                         inp = wait.until(EC.element_to_be_clickable((By.CSS_SELECTOR, PLU_INPUT)))
                         inp.clear()
                         inp.send_keys("0000")
@@ -258,17 +281,20 @@ for idx, current_acc in enumerate(ACCOUNTS):
                 except Exception as e:
                     time.sleep(0.5)
 
-        # 3. WYLOGOWANIE PO 2 TESTACH
+        # 3. WYLOGOWANIE
         print("   🚪 Wylogowywanie...")
         try:
             logout_el = driver.find_element(By.CSS_SELECTOR, LOGOUT_BTN)
             driver.execute_script("arguments[0].dispatchEvent(new MouseEvent('click', {view: window, bubbles:true, cancelable: true}));", logout_el)
             time.sleep(2)
         except Exception as e:
-            print(f"   ⚠️ Problem z wylogowaniem: {e}")
+            pass
 
     except Exception as e:
         print(f"❌ Błąd krytyczny konta {current_acc['u']}: {e}")
+        try:
+            driver.save_screenshot(f"screenshots/CRITICAL_{idx}.png")
+        except: pass
     finally:
         if driver: driver.quit()
         time.sleep(1)
